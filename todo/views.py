@@ -1,7 +1,8 @@
-from django.shortcuts import redirect, render
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DeleteView, ListView, View
+from django.views.generic import CreateView, ListView, View
 
 from .forms import TasksModelForm
 from .models import Tasks
@@ -14,14 +15,11 @@ class TasksListView(ListView):
     template_name = "todo/list.html"
 
 
-class TasksActiveListView(View):
-    """Список задач"""
+class TasksActiveListView(TasksListView):
+    """Список активных (невыполненных) задач"""
 
-    @staticmethod
-    def get(request):
-        return render(request, "todo/list.html", {
-            "tasks_list": Tasks.objects.filter(is_active=True).all()
-        })
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
 
 
 class TasksCreateView(CreateView):
@@ -33,15 +31,19 @@ class TasksCreateView(CreateView):
 
 
 class TasksUpdateIsDoneView(View):
-    """Редактирование статуса задачи"""
+    """Переключение статуса выполнения задачи"""
 
     @staticmethod
     def post(request, pk):
-        item = Tasks.objects.filter(id=pk).first()
-        if item.is_active:
-            Tasks.objects.filter(id=pk).update(is_active=False, completed_at=timezone.now())
-        else:
-            Tasks.objects.filter(id=pk).update(is_active=True, completed_at=None)
+        with transaction.atomic():
+            item = get_object_or_404(Tasks, pk=pk)
+            if item.is_active:
+                item.is_active = False
+                item.completed_at = timezone.now()
+            else:
+                item.is_active = True
+                item.completed_at = None
+            item.save()
         return redirect("todo:index")
 
 
@@ -51,10 +53,10 @@ class TasksDeleteView(View):
     @staticmethod
     def get(request, pk):
         return render(request, "todo/delete.html", {
-            "item": Tasks.objects.get(id=pk)
+            "item": get_object_or_404(Tasks, pk=pk)
         })
 
     @staticmethod
     def post(request, pk):
-        Tasks.objects.filter(id=pk).delete()
+        get_object_or_404(Tasks, pk=pk).delete()
         return redirect("todo:index")

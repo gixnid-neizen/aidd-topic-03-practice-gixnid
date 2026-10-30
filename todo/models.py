@@ -11,6 +11,9 @@ class Tasks(models.Model):
         verbose_name="Время завершения", blank=True, null=True
     )
 
+    def __str__(self):
+        return self.title
+
     class Meta:
         verbose_name = "Задача"
         verbose_name_plural = "Задачи"
