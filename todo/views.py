@@ -1,7 +1,7 @@
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DeleteView, ListView, View
+from django.views.generic import CreateView, ListView, View
 
 from .forms import TasksModelForm
 from .models import Tasks
@@ -14,14 +14,14 @@ class TasksListView(ListView):
     template_name = "todo/list.html"
 
 
-class TasksActiveListView(View):
-    """Список задач"""
+class TasksActiveListView(ListView):
+    """Список активных задач"""
 
-    @staticmethod
-    def get(request):
-        return render(request, "todo/list.html", {
-            "tasks_list": Tasks.objects.filter(is_active=True).all()
-        })
+    model = Tasks
+    template_name = "todo/list.html"
+
+    def get_queryset(self):
+        return Tasks.objects.filter(is_active=True)
 
 
 class TasksCreateView(CreateView):
@@ -37,7 +37,7 @@ class TasksUpdateIsDoneView(View):
 
     @staticmethod
     def post(request, pk):
-        item = Tasks.objects.filter(id=pk).first()
+        item = get_object_or_404(Tasks, id=pk)
         if item.is_active:
             Tasks.objects.filter(id=pk).update(is_active=False, completed_at=timezone.now())
         else:
@@ -50,8 +50,9 @@ class TasksDeleteView(View):
 
     @staticmethod
     def get(request, pk):
+        item = get_object_or_404(Tasks, id=pk)
         return render(request, "todo/delete.html", {
-            "item": Tasks.objects.get(id=pk)
+            "item": item
         })
 
     @staticmethod

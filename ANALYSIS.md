@@ -34,7 +34,7 @@
 | ASGI / WSGI | встроенные в Django | `config/wsgi.py`, `config/asgi.py` |
 | Dev-зависимости | `black == 23.1.0`, `isort == 5.12.0`, `mypy-extensions`, `click` и др. | `requirements.txt` |
 
-Язык и локаль: **ru-RU**, часовой пояс **Europe/Moscow** (`config/settings.py:87-89`).
+Язык и локаль: **ru-RU**, часовой пояс **Europe/Moscow** (`config/settings.py:87-89`). Время в шаблонах выводится с учётом локальной временной зоны через фильтр `|localtime` (`todo/templates/todo/list.html:47,54`).
 ---
 
 ## 2) Структура проекта и назначение каждого каталога и ключевого файла
@@ -70,7 +70,7 @@ todo-Cline/
 | `config/settings.py` | Конфигурация приложений, БД, шаблонов, middleware |
 | `config/urls.py` | Корневой роутер: admin + todo.urls |
 | `todo/models.py` | Модель Tasks (ORM) |
-| `todo/admin.py` | Настройка отображения в админке |
+| `todo/admin.py` | Админка: регистрация модели `Tasks` с отображением полей `title`, `is_active`, `created_at`, `completed_at` в списке, поиск по `title`, форма редактирования с полями `title`, `is_active`, `completed_at` (`todo/admin.py:6-9`) |
 | `todo/forms.py` | Форма создания задачи (поле title) |
 | `todo/urls.py` | Маршруты с namespace "todo" |
 | `todo/views.py` | Бизнес-логика (CBV) |
@@ -78,6 +78,16 @@ todo-Cline/
 | `todo/templates/todo/list.html` | Список задач |
 | `todo/templates/todo/create.html` | Форма создания |
 | `todo/templates/todo/delete.html` | Подтверждение удаления |
+
+### Административная панель Django
+
+Модель `Tasks` зарегистрирована в админке через `@admin.register(Tasks)` (`todo/admin.py:6`). Класс `TasksAdmin` настраивает:
+
+- **`list_display`** — колонки в списке: `title`, `is_active`, `created_at`, `completed_at` (`todo/admin.py:8`);
+- **`search_fields`** — поиск по полю `title` (`todo/admin.py:9`);
+- **`fields`** — порядок полей в форме редактирования: `title`, `is_active`, `completed_at` (`todo/admin.py:10`);
+
+Админка доступна по URL `/admin/` (`config/urls.py:2`).
 
 ---
 
@@ -198,6 +208,20 @@ HTTP-ответ (HTML) → Браузер
 **`TasksUpdateIsDoneView`** — `View.post(request, pk)`, переключает `is_active` и устанавливает/сбрасывает `completed_at`, ORM `update(...)`.
 
 **`TasksDeleteView`** — `get` рендерит `delete.html`, `post` делает `delete()` и редирект.
+
+### Шаблон списка задач (`todo/templates/todo/list.html`)
+
+**Колонки таблицы** (`list.html:16-22`):
+1. `#` — порядковый номер (`{{ forloop.counter }}`, строка 29);
+2. **Выполено** (опечатка, должно быть «Выполнено») — переключатель статуса через чекбокс с `onclick="javascript:submit()"` (строки 32-41);
+3. **Название** — `{{ model.title }}` (строка 44);
+4. **Время создания** — `{{ model.created_at|localtime }}` или `-` (строки 46-50);
+5. **Время выполнения** — `{{ model.completed_at|localtime }}` или `-` (строки 53-57);
+6. **Управление** — кнопка «Удалить» (`btn btn-danger`, ссылка `{% url 'todo:delete' model.id %}`, строки 60-63).
+
+**Пустое состояние** — если задач нет, выводится сообщение «Список дел еще нет» (`list.html:68-69`). Кнопка «Добавить» (`{% url 'todo:create' %}`) доступна всегда (`list.html:10`).
+
+---
 
 ### Работа с БД
 
@@ -339,3 +363,46 @@ HTTP-ответ (HTML) → Браузер
 9. **Отсутствие разграничения прав доступа.** Любой пользователь может создать, переключить статус и удалить любую задачу, так как нет привязки к пользователю и нет проверок прав (`todo/views.py`, `todo/models.py`).
 
 10. **Нет использования `TasksActiveListView` из шаблона.** Навигация в `base.html` ведёт только на `todo:index` (`base.html:32,49`); ссылка на `/active` не используется в интерфейсе, хотя маршрут существует.
+
+11. **Запутанная история миграций.** `0001_add_item.py` создаёт модель `Item` с полем `is_done` (default `False`), `0002_rename_is_active.py` переименовывает `is_done` → `is_active`, а `0003_rename_tasks.py` создаёт модель `Tasks` (с `is_active`, default `True`) и удаляет модель `Item` (`todo/migrations/0001_add_item.py`, `0002_rename_is_active.py`, `0003_rename_tasks.py`). Прямой путь от исходного состояния к текущему неотследим — промежуточная модель `Item` создана и удалена.
+
+12. **Неконсистентность default между миграциями.** В `0001_add_item.py` поле `is_done` имеет `default=False`, а в итоговой модели `Tasks` поле `is_active` имеет `default=True`. Это означает, что при применении миграций с нуля новая задача создаётся активной, но промежуточная модель `Item` предполагала неактивное состояние по умолчанию.
+
+13. **Отсутствие squash-миграции.** Три миграции для одной модели создают лишнюю нагрузку при применении и усложняют понимание схемы БД (`todo/migrations/`).
+
+---
+
+## 9) Исправленные дефекты реализации
+
+Ниже перечислены дефекты из разделов 6 и 7, которые влияли на работоспособность, и внесённые правки.
+
+### 9.1 Исправлено в `todo/views.py`
+
+| Дефект | Было | Стало | Файл |
+|--------|------|-------|------|
+| **500 при удалении несуществующей задачи** | `Tasks.objects.get(id=pk)` — вызывает `DoesNotExist` → ошибка 500 | `get_object_or_404(Tasks, id=pk)` — возвращает 404 | `todo/views.py:53` |
+| **`AttributeError` при переключении статуса несуществующей задачи** | `Tasks.objects.filter(id=pk).first()` может вернуть `None`, затем `item.is_active` → `AttributeError` | `get_object_or_404(Tasks, id=pk)` — возвращает 404 | `todo/views.py:40` |
+| **Дублирование логики списка** | `TasksActiveListView(View)` с ручным `render()` и `TasksListView(ListView)` — разные паттерны | Оба — `ListView`, `TasksActiveListView` через `get_queryset()` | `todo/views.py:17-24` |
+| **Неиспользуемый импорт** | `DeleteView` импортирован, но не используется | Удалён из импортов | `todo/views.py:4` |
+
+### 9.2 Исправлено в `config/settings.py`
+
+| Дефект | Было | Стало | Файл |
+|--------|------|-------|------|
+| **Мёртвая конфигурация REST** | Блок `REST_FRAMEWORK` с `django_filters.rest_framework.DjangoFilterBackend`, но API не реализовано | Удалён | `config/settings.py:28-32` (удалено) |
+| **Неиспользуемая зависимость** | `"django_filters"` в `INSTALLED_APPS` | Удалён | `config/settings.py:22` (удалено) |
+
+### 9.3 Исправлено в `requirements.txt`
+
+| Изменение | Было | Стало |
+|-----------|------|-------|
+| Удалена неиспользуемая зависимость | `django-filter==26.2` | Удалён |
+
+### 9.4 Поведение приложения не изменилось
+
+- `/` — показывает все задачи (как и раньше)
+- `/active` — показывает только активные задачи (как и раньше)
+- `/create` — создание задачи (как и раньше)
+- `/update/<int:pk>` — переключение статуса (как и раньше)
+- `/delete/<int:pk>` — удаление с подтверждением (как и раньше)
+- Несуществующая задача теперь возвращает **404** вместо **500**

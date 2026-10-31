@@ -1,11 +1,11 @@
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = ""
+SECRET_KEY = "django-insecure-temporary-dev-key-for-local-testing-only-do-not-use-in-production"
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 INSTALLED_APPS = [
@@ -19,17 +19,10 @@ INSTALLED_APPS = [
     "crispy_forms",
     # "crispy_bootstrap5",
     "crispy_bootstrap3",
-    "django_filters",
 ]
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap3"
 CRISPY_TEMPLATE_PACK = "bootstrap3"
-
-REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
-    "PAGE_SIZE": 2,
-    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
-}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
