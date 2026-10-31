@@ -5,9 +5,10 @@
 {% endblock %}
 
 {% block content %}
-{% load tz %}
+{% load tz todo_tags %}
 <div>
     <a href="{% url 'todo:create' %}" class="btn btn-primary">Добавить</a>
+    <a href="{% url 'todo:category_create' %}" class="btn btn-outline-secondary ms-2">Категории</a>
 </div>
 
 {% if tasks_list %}
@@ -15,10 +16,12 @@
     <thead>
     <tr>
         <th scope="col">#</th>
-        <th scope="col">Выполено</th>
-        <th scope="col">Название</th>
-        <th scope="col">Время создания</th>
-        <th scope="col">Время выполнения</th>
+        <th scope="col"><a href="?sort=priority&dir={{ dir_priority }}">Приоритет</a></th>
+        <th scope="col"><a href="?sort=category&dir={{ dir_category }}">Категория</a></th>
+        <th scope="col"><a href="?sort=title&dir={{ dir_title }}">Название</a></th>
+        <th scope="col"><a href="?sort=created_at&dir={{ dir_created_at }}">Время создания</a></th>
+        <th scope="col"><a href="?sort=deadline&dir={{ dir_deadline }}">Дедлайн</a></th>
+        <th scope="col"><a href="?sort=progress&dir={{ dir_progress }}">Прогресс</a></th>
         <th scope="col">Управление</th>
     </tr>
     </thead>
@@ -28,18 +31,20 @@
     <tr>
         <th scope="row">{{forloop.counter}}</th>
         <td>
-
-            <form method="post" action="{% url 'todo:update' model.id %}">
-                {% csrf_token %}
-                <div class="form-check form-switch">
-                    {% if not model.is_active %}
-                    <input class="form-check-input" type="checkbox" onclick="javascript:submit()" role="switch" checked >
-                    {% else %}
-                    <input class="form-check-input" type="checkbox" onclick="javascript:submit()" role="switch">
-                    {% endif %}
-                </div>
-            </form>
-
+            {% if model.priority == "low" %}
+            <span class="badge bg-secondary">Низкий</span>
+            {% elif model.priority == "high" %}
+            <span class="badge bg-danger">Высокий</span>
+            {% else %}
+            <span class="badge bg-warning text-dark">Средний</span>
+            {% endif %}
+        </td>
+        <td>
+            {% if model.category %}
+            <span class="badge bg-info">{{ model.category.name }}</span>
+            {% else %}
+            <span class="text-muted">-</span>
+            {% endif %}
         </td>
         <td>{{ model.title }}</td>
         <td>
@@ -50,25 +55,68 @@
             {% endif %}
         </td>
         <td>
-            {% if model.completed_at %}
-            {{ model.completed_at|localtime }}
+            {% if model.deadline %}
+            {{ model.deadline|localtime }}
             {% else %}
             -
             {% endif %}
         </td>
         <td>
-            <a href="{% url 'todo:delete' model.id %}" class="btn btn-danger">
-                Удалить
-            </a>
+            {% with model.subtasks.all as subtasks %}
+            {% with subtasks|completed_count as completed %}
+            {% with subtasks|length as total %}
+            {{ completed }}/{{ total }} ({% if total %}{% widthratio completed total 100 %}{% else %}0{% endif %}%)
+            {% endwith %}
+            {% endwith %}
+            {% endwith %}
         </td>
+        <td>
 
+            <form method="post" action="{% url 'todo:update' model.id %}" style="display:inline;">
+                {% csrf_token %}
+                <div class="form-check form-switch">
+                    {% if not model.is_active %}
+                    <input class="form-check-input" type="checkbox" onclick="javascript:submit()" role="switch" checked>
+                    {% else %}
+                    <input class="form-check-input" type="checkbox" onclick="javascript:submit()" role="switch">
+                    {% endif %}
+                </div>
+            </form>
+
+            <a href="{% url 'todo:edit' model.id %}" class="btn btn-sm btn-outline-primary">Редактировать</a>
+            <a href="{% url 'todo:delete' model.id %}" class="btn btn-sm btn-danger">Удалить</a>
+
+            {% with model.subtasks.all as subtasks %}
+            <div class="mt-2">
+                {% if subtasks %}
+                <small>Подзадачи:</small>
+                <ul class="list-unstyled">
+                    {% for subtask in subtasks %}
+                    <li>
+                        <form method="post" action="{% url 'todo:subtask_update' model.id subtask.id %}" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="checkbox" onclick="javascript:submit()" {% if subtask.is_completed %}checked{% endif %}>
+                        </form>
+                        {{ subtask.title }}
+                        <form method="post" action="{% url 'todo:subtask_delete' model.id subtask.id %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <a href="{% url 'todo:subtask_create' model.id %}" class="btn btn-sm btn-outline-secondary">+ Подзадача</a>
+            </div>
+            {% endwith %}
+
+        </td>
     </tr>
     {% endfor %}
 
-    {% else %}
-    <p>Список дел еще нет</p>
-    {% endif %}
-
     </tbody>
 </table>
+{% else %}
+<p>Список дел еще нет</p>
+{% endif %}
 {% endblock %}

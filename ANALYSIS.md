@@ -1,408 +1,554 @@
-# ANALYSiS — Анализ проекта ToDo (Python/Django)
+# ANALYSIS — анализ проекта ToDo (Python/Django)
 
-> **Исходный репозиторий:** `/home/default/projects/todo-Cline`  
-> **Статус:** только чтение, без изменений  
+> **Репозиторий:** `/home/default/projects/todo-Cline`
+> **Статус:** актуально на 2026-11-01
+> **Документ:** описывает текущее состояние кода, включая реализованные доработки.
 > **Язык документации проекта:** русский
 
 ---
 
-## 1) Назначение приложения и технологический стек
+## 1. Назначение приложения и технологический стек
 
-### Назначение
-Приложение — классический **ToDo-менеджер** (список дел). Пользователь может:
-- просматривать список задач (все или только активные);
-- создавать новые задачи;
-- переключать статус задачи «выполнена/не выполнена» (toggle);
-- удалять задачи.
+### 1.1 Назначение
 
-Проект используется в рамках практического занятия по AI Coding Agents (файл `PRACTICE.md`): студенты исследуют чужой код, восстанавливают требования, рефакторят и дорабатывают приложение.
+Приложение — учебный **ToDo-менеджер** (список дел). Текущая версия позволяет:
 
-### Технологический стек
+- просматривать все задачи и отдельно только активные;
+- создавать и редактировать задачи;
+- задавать название, дедлайн, приоритет и категорию;
+- переключать статус задачи «активна / выполнена»;
+- удалять задачи с подтверждением;
+- создавать категории;
+- создавать подзадачи, отмечать их выполнение и удалять;
+- видеть прогресс выполнения подзадач;
+- сортировать список по приоритету, категории, названию, дате создания, дедлайну и прогрессу.
+
+Проект используется в рамках практического занятия по AI Coding Agents (`PRACTICE.md`).
+
+### 1.2 Технологический стек
 
 | Компонент | Технология / версия | Источник |
 |-----------|---------------------|----------|
-| Язык программирования | Python 3 | `requirements.txt`, `.venv` |
-| Веб-фреймворк | **Django == 4.1.7** | `requirements.txt` |
-| База данных | **SQLite 3** (`django.db.backends.sqlite3`) | `config/settings.py:66-68` |
+| Язык | Python 3.14.4 | `.venv`, `python --version` |
+| Веб-фреймворк | Django 6.1.2 | `requirements.txt`, `.venv` |
+| База данных | SQLite 3 | `config/settings.py` |
 | ORM | Django ORM | `todo/models.py` |
-| Шаблонизатор | Django Templates | `todo/templates/`, `config/settings.py:46-60` |
-| CSS-фреймворк (UI) | **Bootstrap 3** (через `bootstrap.min.css`, `crispy_bootstrap3`) | `todo/static/todo/css/bootstrap.min.css`, `config/settings.py:26` |
-| Формы | `django-crispy-forms == 2.0`, `crispy-bootstrap3` | `requirements.txt`, `todo/forms.py`, `todo/templates/todo/create.html` |
-| Фильтрация | `django-filter == 22.1` (`django_filters`) | `requirements.txt`, `config/settings.py:22,31` |
-| REST API (подключён, но не используется в Views) | `djangorestframework == 3.14.0` | `requirements.txt`, `config/settings.py:28-32` |
-| JS-библиотеки (CDN) | jQuery 3.3.1 slim, Popper.js 1.14.6, Moment.js 2.23.0, Tempus Dominus Bootstrap 4, Font Awesome 4.7.0 | `todo/templates/todo/base.html:12-23` |
-| ASGI / WSGI | встроенные в Django | `config/wsgi.py`, `config/asgi.py` |
-| Dev-зависимости | `black == 23.1.0`, `isort == 5.12.0`, `mypy-extensions`, `click` и др. | `requirements.txt` |
+| Шаблонизатор | Django Templates | `config/settings.py`, `todo/templates/` |
+| CSS | Bootstrap 5.1.3 (локальный `bootstrap.min.css`) | `todo/static/todo/css/bootstrap.min.css` |
+| Формы | django-crispy-forms 2.7 + crispy-bootstrap3 2024.1 | `requirements.txt`, `todo/forms.py` |
+| Календарь даты/времени | нативный HTML5 `input type="datetime-local"` | `todo/forms.py` |
+| Локаль и время | `ru-RU`, `Europe/Moscow`, `USE_TZ=True` | `config/settings.py` |
+| Статика | `STATIC_URL = "static/"`, файлы приложения | `config/settings.py`, `todo/static/` |
 
-Язык и локаль: **ru-RU**, часовой пояс **Europe/Moscow** (`config/settings.py:87-89`). Время в шаблонах выводится с учётом локальной временной зоны через фильтр `|localtime` (`todo/templates/todo/list.html:47,54`).
+Дополнительно в шаблон `base.html` подключены по CDN: jQuery 3.3.1 slim, Popper.js 1.14.6, Moment.js 2.23.0, Tempus Dominus Bootstrap 4 и Font Awesome 4.7.0.
+
+> **Важно:** `django-filter==26.2` установлен в виртуальном окружении, но не указан в `requirements.txt`, не добавлен в `INSTALLED_APPS` и нигде не используется. Это остаток прежней конфигурации.
+
 ---
 
-## 2) Структура проекта и назначение каждого каталога и ключевого файла
+## 2. Структура проекта
 
-```
+```text
 todo-Cline/
-├── .gitignore                 # Исключения для Git
-├── README.md                  # Инструкция по установке и запуску
-├── PRACTICE.md                # Описание практического задания
-├── requirements.txt           # Зависимости с версиями
-├── manage.py                  # CLI точка входа Django
-├── config/                    # Конфигурация проекта
-│   ├── asgi.py                # ASGI точка входа
-│   ├── settings.py            # Основные настройки (INSTALLED_APPS, DATABASES, TEMPLATES, MIDDLEWARE)
-│   ├── urls.py                # Корневой URL-роутер
-│   └── wsgi.py                # WSGI точка входа
-├── todo/                      # Приложение todo
-│   ├── admin.py               # Регистрация Tasks в админке
-│   ├── apps.py                # Конфиг приложения TodoConfig
-│   ├── forms.py               # TasksModelForm
-│   ├── models.py              # Модель Tasks
-│   ├── urls.py                # URL-роутер приложения
-│   ├── views.py               # Классовые представления
-│   ├── migrations/            # Миграции БД
-│   ├── static/todo/css/       # CSS файлы
-│   └── templates/todo/        # HTML шаблоны
-└── db.sqlite3                 # SQLite база (в .gitignore)
+├── ANALYSIS.md                  # этот документ
+├── AUDIT.md                     # исторический технический аудит (частично устарел)
+├── PRACTICE.md                  # описание практического задания
+├── README.md                    # краткая инструкция запуска (частично устарела)
+├── requirements.txt             # зафиксированные Python-зависимости
+├── manage.py                    # CLI Django
+├── db.sqlite3                   # локальная SQLite-база (в .gitignore)
+├── config/
+│   ├── settings.py              # настройки проекта
+│   ├── urls.py                  # корневой URL-роутер
+│   ├── asgi.py
+│   └── wsgi.py
+└── todo/
+    ├── admin.py                 # регистрация моделей в админке
+    ├── apps.py                  # TodoConfig
+    ├── forms.py                 # формы задачи, подзадачи и категории
+    ├── models.py                # Category, Tasks, Subtask
+    ├── urls.py                  # маршруты приложения
+    ├── views.py                 # классовые представления
+    ├── migrations/              # миграции 0001–0005
+    ├── static/todo/css/         # CSS
+    └── templates/todo/          # HTML-шаблоны
 ```
+
+### 2.1 Ключевые файлы
 
 | Файл | Назначение |
 |------|------------|
-| `manage.py` | Запуск команд Django |
-| `config/settings.py` | Конфигурация приложений, БД, шаблонов, middleware |
-| `config/urls.py` | Корневой роутер: admin + todo.urls |
-| `todo/models.py` | Модель Tasks (ORM) |
-| `todo/admin.py` | Админка: регистрация модели `Tasks` с отображением полей `title`, `is_active`, `created_at`, `completed_at` в списке, поиск по `title`, форма редактирования с полями `title`, `is_active`, `completed_at` (`todo/admin.py:6-9`) |
-| `todo/forms.py` | Форма создания задачи (поле title) |
-| `todo/urls.py` | Маршруты с namespace "todo" |
-| `todo/views.py` | Бизнес-логика (CBV) |
-| `todo/templates/todo/base.html` | Базовый шаблон |
-| `todo/templates/todo/list.html` | Список задач |
-| `todo/templates/todo/create.html` | Форма создания |
-| `todo/templates/todo/delete.html` | Подтверждение удаления |
-
-### Административная панель Django
-
-Модель `Tasks` зарегистрирована в админке через `@admin.register(Tasks)` (`todo/admin.py:6`). Класс `TasksAdmin` настраивает:
-
-- **`list_display`** — колонки в списке: `title`, `is_active`, `created_at`, `completed_at` (`todo/admin.py:8`);
-- **`search_fields`** — поиск по полю `title` (`todo/admin.py:9`);
-- **`fields`** — порядок полей в форме редактирования: `title`, `is_active`, `completed_at` (`todo/admin.py:10`);
-
-Админка доступна по URL `/admin/` (`config/urls.py:2`).
+| `config/settings.py` | Настройки приложений, БД, шаблонов, middleware, локали |
+| `config/urls.py` | `admin/` + подключение `todo.urls` |
+| `todo/models.py` | Модели `Category`, `Tasks`, `Subtask` |
+| `todo/views.py` | Список, сортировка, CRUD задач, категорий и подзадач |
+| `todo/forms.py` | `TasksModelForm`, `SubtaskModelForm`, `CategoryModelForm` |
+| `todo/urls.py` | Маршруты с namespace `todo` |
+| `todo/admin.py` | Админка для трёх моделей |
+| `todo/templates/todo/list.html` | Основной список задач, сортировка, подзадачи, прогресс |
+| `todo/templates/todo/create.html`, `edit.html` | Создание и редактирование задачи |
+| `todo/templates/todo/category_form.html` | Создание категории |
+| `todo/templates/todo/subtask_form.html` | Создание подзадачи |
+| `todo/templates/todo/delete.html` | Подтверждение удаления задачи |
 
 ---
 
-## 3) Архитектура и взаимодействие компонентов
+## 3. Архитектура и взаимодействие компонентов
 
-### Паттерн MTV (Model-Template-View)
+Приложение построено по паттерну **MTV (Model–Template–View)**.
 
+```text
+Браузер
+  ↓ HTTP
+config/urls.py
+  ↓
+todo/urls.py (namespace "todo")
+  ↓
+todo/views.py (ListView / CreateView / UpdateView / View)
+  ↕
+todo/models.py (Django ORM → SQLite)
+  ↓
+todo/templates/todo/*.html
+  ↓
+HTTP-ответ (HTML)
 ```
-Браузер (HTTP-запрос)
-        ↓
-config/urls.py  (корневой роутер)
-        ↓
-todo/urls.py    (роутер приложения, namespace "todo")
-        ↓
-todo/views.py   (классовые View)
-        ↕
-todo/models.py  (ORM → модель Tasks → SQLite)
-        ↓
-todo/templates/todo/*.html (рендеринг HTML)
-        ↓
-HTTP-ответ (HTML) → Браузер
-```
 
-### Взаимодействие компонентов
+### 3.1 Компоненты
 
-1. **Маршрутизация** — `config/urls.py` delegатирует запросы в `todo/urls.py` (`config/urls.py:2`).
-2. **Представления (Views)** — `todo/views.py`:
-   - `TasksListView` — все задачи;
-   - `TasksActiveListView` — только активные (`is_active=True`);
-   - `TasksCreateView` — создание через `TasksModelForm`;
-   - `TasksUpdateIsDoneView` — переключение `is_active` и `completed_at`;
-   - `TasksDeleteView` — GET (подтверждение) и POST (удаление).
-3. **Модель (Model)** — `todo/models.py`, таблица `Tasks`. Чтения/записи через Django ORM.
-4. **Шаблоны (Templates)** — расширяют `base.html`, формы через `crispy_forms_tags`, CSRF-токен во всех формах.
-5. **Админка** — `todo/admin.py`, регистрация `Tasks` с полями `title`, `is_active`, `created_at`, `completed_at`.
-6. **Статика** — CSS через `{% static %}`, JS через CDN.
+1. **Маршрутизация.** `config/urls.py` направляет `admin/` в админку, остальные запросы — в `todo.urls`.
+2. **Представления.** `TasksListView` и `TasksActiveListView` отвечают за список и сортировку; `TasksCreateView` и `TasksUpdateView` — за формы задачи; отдельные `View` — за переключение статуса и удаление; `SubtaskCreateView`/`SubtaskDeleteView`/`SubtaskUpdateIsDoneView` — за подзадачи.
+3. **Модели.** `Category`, `Tasks`, `Subtask`; связи `Category → Tasks` и `Tasks → Subtask`.
+4. **Шаблоны.** Наследуются от `base.html`; формы рендерятся через `crispy_forms_tags`; во всех POST-формах есть `{% csrf_token %}`.
+5. **Статика.** Локальный CSS Bootstrap 5.1.3; часть JS-библиотек подключена по CDN.
 
 ---
 
-## 4) Библиотеки и внешние зависимости с версиями
+## 4. Зависимости
+
+### 4.1 Python-зависимости из `requirements.txt`
 
 | Пакет | Версия | Назначение |
 |-------|--------|------------|
-| `Django` | `4.1.7` | Веб-фреймворк |
-| `asgiref` | `3.6.0` | ASGI (требуется Django) |
-| `sqlparse` | `0.4.3` | Парсинг SQL (требуется Django) |
-| `pytz` | `2022.7.1` | Часовые пояса |
-| `django-crispy-forms` | `2.0` | Рендеринг форм |
-| `crispy-bootstrap3` | `2022.1` | Тема Bootstrap 3 для crispy |
-| `crispy-bootstrap5` | `0.7` | Тема Bootstrap 5 (не используется) |
-| `django-filter` | `22.1` | Фильтрация queryset |
-| `djangorestframework` | `3.14.0` | REST API (не реализованы эндпоинты) |
-| `black` | `23.1.0` | Форматтер кода (dev) |
-| `isort` | `5.12.0` | Сортировка импортов (dev) |
-| `mypy-extensions` | `1.0.0` | Расширения mypy (dev) |
-| `click` | `8.1.3` | CLI (зависимость black) |
-| `packaging` | `23.0` | Версии пакетов |
-| `pathspec` | `0.11.0` | Совместимость с .gitignore |
-| `platformdirs` | `3.0.0` | Папки платформы |
-| `tomli` | `2.0.1` | Парсинг TOML |
+| `Django` | 6.1.2 | Веб-фреймворк |
+| `asgiref` | 3.13.0 | ASGI-совместимость |
+| `sqlparse` | 0.6.0 | Разбор SQL |
+| `django-crispy-forms` | 2.7 | Рендеринг форм |
+| `crispy-bootstrap3` | 2024.1 | Шаблоны crispy для Bootstrap 3 |
 
-**Зависимости по CDN** (`base.html`): jQuery 3.3.1 slim, Popper.js 1.14.6, Moment.js 2.23.0, Tempus Dominus Bootstrap 4, Font Awesome 4.7.0.
+### 4.2 Фактически установлено в `.venv`
+
+Дополнительно к списку выше установлен `django-filter==26.2`. Он не используется приложением и не включён в `INSTALLED_APPS`.
+
+### 4.3 CDN-ресурсы
+
+В `todo/templates/todo/base.html` подключены:
+
+- jQuery 3.3.1 slim;
+- Popper.js 1.14.6;
+- Moment.js 2.23.0;
+- Tempus Dominus Bootstrap 4 5.1.2;
+- Font Awesome 4.7.0.
+
+`Tempus Dominus` и `Moment.js` в текущей форме задачи не используются: дедлайн реализован нативным `datetime-local`. Скрипт инициализации `#datetimepicker1` в `base.html` остаётся мёртвым кодом.
 
 ---
 
-## 5) Модель данных (сущности, атрибуты, связи)
+## 5. Модель данных
 
-Единственная сущность — **`Tasks`** (`todo/models.py:4-12`).
+### 5.1 Category
 
-### Сущность Tasks
+| Поле | Тип | Параметры |
+|------|-----|-----------|
+| `id` | `BigAutoField` | первичный ключ |
+| `name` | `CharField` | `max_length=100`, `verbose_name="Название"` |
 
-| Атрибут | Тип | Параметры | Описание |
-|---------|-----|-----------|----------|
-| `id` | `BigAutoField` | `primary_key=True` | Идентификатор задачи |
-| `title` | `CharField` | `max_length=255`, `verbose_name="Наименование"` | Название задачи |
-| `is_active` | `BooleanField` | `default=True`, `verbose_name="Выполнена"` | Флаг выполнения |
-| `created_at` | `DateTimeField` | `auto_now_add=True`, `verbose_name="Время создания"` | Время создания |
-| `completed_at` | `DateTimeField` | `blank=True, null=True`, `verbose_name="Время завершения"` | Время завершения |
+Поле `color` удалено из модели и из итоговой схемы БД миграцией `0005_remove_category_color.py`.
 
-### Метаданные модели (`todo/models.py:14-16`)
-- `verbose_name = "Задача"`
-- `verbose_name_plural = "Задачи"`
+### 5.2 Tasks
 
-### Связи
-Связей нет (нет ForeignKey, OneToOne, ManyToMany). Нет привязки к пользователю (`auth.User`).
+| Поле | Тип | Параметры / значение по умолчанию |
+|------|-----|-----------------------------------|
+| `id` | `BigAutoField` | первичный ключ |
+| `title` | `CharField` | `max_length=255`, обязательное |
+| `is_active` | `BooleanField` | `default=True`; семантика — «задача активна / не выполнена» |
+| `created_at` | `DateTimeField` | `auto_now_add=True` |
+| `completed_at` | `DateTimeField` | `blank=True`, `null=True` |
+| `priority` | `CharField` | `low` / `medium` / `high`, по умолчанию `medium` |
+| `category` | `ForeignKey(Category)` | `blank=True`, `null=True`, `on_delete=SET_NULL` |
+| `deadline` | `DateTimeField` | `blank=True`, `null=True` |
 
-### История миграций (`todo/migrations/`)
-1. `0001_add_item.py` — модель `Item` с полем `is_done` (default `False`);
+### 5.3 Subtask
+
+| Поле | Тип | Параметры |
+|------|-----|-----------|
+| `id` | `BigAutoField` | первичный ключ |
+| `task` | `ForeignKey(Tasks)` | `on_delete=CASCADE`, `related_name="subtasks"` |
+| `title` | `CharField` | `max_length=255`, обязательное |
+| `is_completed` | `BooleanField` | `default=False` |
+
+### 5.4 Связи
+
+```text
+Category 1 ──── N Tasks
+Tasks    1 ──── N Subtask
+```
+
+### 5.5 История миграций
+
+1. `0001_add_item.py` — модель `Item` с полем `is_done` (`default=False`);
 2. `0002_rename_is_active.py` — переименование `is_done` → `is_active`;
-3. `0003_rename_tasks.py` — модель `Tasks` (с `is_active`, default `True`) и удаление `Item`.
+3. `0003_rename_tasks.py` — создание `Tasks` и удаление `Item`;
+4. `0004_category_tasks_deadline_tasks_priority_and_more.py` — создание `Category` (тогда ещё с `color`), добавление `deadline`, `priority`, `category` в `Tasks`, создание `Subtask`;
+5. `0005_remove_category_color.py` — удаление `Category.color`.
+
+Итоговая схема не содержит `color`; упоминания остались только в исторических миграциях `0004`/`0005`.
 
 ---
 
-## 6) Обработка пользовательских запросов и работа с БД
+## 6. Обработка пользовательских запросов
 
-### URL → View → Template/Модель
+### 6.1 Маршруты
 
-Маршруты (`todo/urls.py`, `app_name = "todo"`):
+`todo/urls.py`, `app_name = "todo"`:
 
-| URL | View | Метод | Действие |
-|-----|------|-------|----------|
-| `/` | `TasksListView` | GET | Все задачи (`list.html`) |
-| `/active` | `TasksActiveListView` | GET | Активные задачи (`list.html`) |
-| `/create` | `TasksCreateView` | GET/POST | Создание через `TasksModelForm` |
-| `/update/<int:pk>` | `TasksUpdateIsDoneView` | POST | Переключение `is_active` / `completed_at` |
-| `/delete/<int:pk>` | `TasksDeleteView` | GET/POST | Подтверждение и удаление |
+| URL | Имя | View | Методы |
+|-----|-----|------|--------|
+| `/` | `index` | `TasksListView` | GET |
+| `/active` | `active` | `TasksActiveListView` | GET |
+| `/create` | `create` | `TasksCreateView` | GET, POST |
+| `/update/<int:pk>` | `update` | `TasksUpdateIsDoneView` | POST |
+| `/edit/<int:pk>` | `edit` | `TasksUpdateView` | GET, POST |
+| `/delete/<int:pk>` | `delete` | `TasksDeleteView` | GET, POST |
+| `/category/create` | `category_create` | `TasksCategoryCreateView` | GET, POST |
+| `/task/<int:task_pk>/subtask/create` | `subtask_create` | `SubtaskCreateView` | GET, POST |
+| `/task/<int:task_pk>/subtask/<int:pk>/update` | `subtask_update` | `SubtaskUpdateIsDoneView` | POST |
+| `/task/<int:task_pk>/subtask/<int:pk>/delete` | `subtask_delete` | `SubtaskDeleteView` | POST |
 
-Корневой роутер (`config/urls.py:2`): `admin/` → админка, остальное → `todo.urls`.
+Корневой роутер `config/urls.py` подключает `admin/` и `todo.urls`.
 
-### Подробно по представлениям (`todo/views.py`)
+### 6.2 Представления
 
-**`TasksListView`** — `ListView`, модель `Tasks`, шаблон `todo/list.html`, все задачи без фильтрации.
+#### `TasksListView`
 
-**`TasksActiveListView`** — `View.get`, запрос `Tasks.objects.filter(is_active=True).all()`, ключ контекста `tasks_list`.
+- Модель: `Tasks`.
+- Шаблон: `todo/list.html`.
+- По умолчанию сортирует по `-created_at` (сначала новые).
+- Поддерживает query-параметры `sort` и `dir`.
+- Допустимые поля: `priority`, `category`, `title`, `created_at`, `deadline`, `progress`.
+- Для заголовков таблицы формирует контекстные переменные `dir_priority`, `dir_category`, `dir_title`, `dir_created_at`, `dir_deadline`, `dir_progress`.
 
-**`TasksCreateView`** — `CreateView`, `form_class = TasksModelForm` (только поле `title`), `success_url = reverse_lazy("todo:index")`.
+Логика сортировки (`get_queryset`):
 
-**`TasksUpdateIsDoneView`** — `View.post(request, pk)`, переключает `is_active` и устанавливает/сбрасывает `completed_at`, ORM `update(...)`.
+| Поле | Сортировка |
+|------|------------|
+| `priority` | Аннотация `_priority_order`: `low=1`, `medium=2`, `high=3`; при `asc` — низкий → средний → высокий, при `desc` — наоборот |
+| `category` | `F("category__name").asc/desc(nulls_last=True)` — задачи без категории всегда в конце |
+| `deadline` | `F("deadline").asc/desc(nulls_last=True)` — задачи без дедлайна всегда в конце |
+| `progress` | Аннотация `total=Count("subtasks")`, `completed=Count("subtasks", filter=Q(subtasks__is_completed=True))`, затем `progress_frac`; без подзадач доля равна `0.0` |
+| `title` | `order_by("title")` / `order_by("-title")` |
+| `created_at` | `order_by("created_at")` / `order_by("-created_at")` |
 
-**`TasksDeleteView`** — `get` рендерит `delete.html`, `post` делает `delete()` и редирект.
+Направление:
 
-### Шаблон списка задач (`todo/templates/todo/list.html`)
+- `dir=asc` → возрастание (`order = ""`);
+- `dir=desc` → убывание (`order = "-"`);
+- при повторном клике по тому же заголовку направление переключается;
+- при переходе на другое поле по умолчанию используется `desc`.
 
-**Колонки таблицы** (`list.html:16-22`):
-1. `#` — порядковый номер (`{{ forloop.counter }}`, строка 29);
-2. **Выполено** (опечатка, должно быть «Выполнено») — переключатель статуса через чекбокс с `onclick="javascript:submit()"` (строки 32-41);
-3. **Название** — `{{ model.title }}` (строка 44);
-4. **Время создания** — `{{ model.created_at|localtime }}` или `-` (строки 46-50);
-5. **Время выполнения** — `{{ model.completed_at|localtime }}` или `-` (строки 53-57);
-6. **Управление** — кнопка «Удалить» (`btn btn-danger`, ссылка `{% url 'todo:delete' model.id %}`, строки 60-63).
+#### `TasksActiveListView`
 
-**Пустое состояние** — если задач нет, выводится сообщение «Список дел еще нет» (`list.html:68-69`). Кнопка «Добавить» (`{% url 'todo:create' %}`) доступна всегда (`list.html:10`).
+Наследуется от `TasksListView` и переопределяет только `get_queryset`:
 
----
+```python
+def get_queryset(self):
+    return super().get_queryset().filter(is_active=True)
+```
 
-### Работа с БД
+Благодаря этому активный список использует ту же сортировку, тот же шаблон и те же `dir_*`-переменные, без дублирования кода.
 
-- **Движок:** SQLite 3, файл `db.sqlite3` в корне (`config/settings.py:64-68`).
-- **ORM:** все операции через Django ORM (`Tasks.objects.*`), нет raw SQL.
-- **Миграции:** 3 файла в `todo/migrations/`, через `python manage.py migrate`.
-- **Транзакции:** не управляются явно (авто-коммит Django).
-- **Соединение:** ленивое, при первом запросе к БД.
+#### `TasksCreateView` и `TasksUpdateView`
 
-### Особенности
+- Используют `TasksModelForm`.
+- Поля формы: `title`, `deadline`, `priority`, `category`.
+- `success_url = reverse_lazy("todo:index")`.
+- Дедлайн рендерится как `input type="datetime-local"`.
 
-1. Форма переключения статуса в `list.html` отправляется через `onclick="javascript:submit()"`.
-2. `delete.html`: GET для подтверждения, POST для удаления.
-3. `TasksListView` не фильтрует, `TasksActiveListView` фильтрует — дублирование логики.
-4. `django-filter` и `djangorestframework` подключены, но не используются во views.
-5. Нет аутентификации/авторизации, нет привязки к пользователю.
-6. Поле `is_active` имеет семантику «не выполнено» (default `True`).
+#### `TasksUpdateIsDoneView`
 
----
+POST-переключение статуса задачи:
 
-**Источники:** `/home/default/projects/todo-Cline/config/settings.py`, `config/urls.py`, `todo/models.py`, `todo/views.py`, `todo/urls.py`, `todo/forms.py`, `todo/admin.py`, `todo/migrations/*.py`, `todo/templates/todo/*.html`, `requirements.txt`, `PRACTICE.md`, `README.md`.
+- если `is_active=True` → `is_active=False`, `completed_at=timezone.now()`;
+- если `is_active=False` → `is_active=True`, `completed_at=None`;
+- после изменения — редирект на `todo:index`.
 
----
+#### `TasksDeleteView`
 
-## 7) Восстановленные функциональные требования
+- GET — страница подтверждения `todo/delete.html`;
+- POST — удаление задачи и редирект на `todo:index`;
+- для несуществующего `pk` используется `get_object_or_404` → 404.
 
-### 7.1 Основные функциональные возможности приложения
+#### `TasksCategoryCreateView`
 
-На основании кода реализованы следующие возможности:
+- Модель `Category`.
+- Форма `CategoryModelForm`.
+- Поле только `name`.
+- После создания — редирект на `todo:index`.
 
-1. **Просмотр списка всех задач** — отображение всех записей модели `Tasks` без фильтрации.
-2. **Просмотр только активных задач** — фильтрация по `is_active=True`.
-3. **Создание новой задачи** — ввод только названия (`title`) через форму.
-4. **Переключение статуса задачи** — смена флага `is_active` между активной и выполненной, с установкой/сбросом `completed_at`.
-5. **Удаление задачи** — двухэтапная процедура: страница подтверждения (GET) и фактическое удаление (POST).
+#### `SubtaskCreateView`
 
----
+- Модель `Subtask`, форма `SubtaskModelForm` (поле `title`).
+- Родительская задача определяется по `task_pk` в URL и присваивается в `form_valid`.
+- После создания — редирект на `todo:index`.
 
-### 7.2 Основные сценарии взаимодействия пользователя
+#### `SubtaskUpdateIsDoneView`
 
-**Сценарий 1. Просмотр всех задач**
-1. Пользователь открывает главную страницу (`/`).
-2. Система использует `TasksListView` (`todo/views.py:10-14`), маршрут `""` (`todo/urls.py:14`).
-3. Отображается шаблон `todo/templates/todo/list.html` со всеми задачами из `Tasks.objects.all()`.
+- POST по URL с `task_pk` и `pk`.
+- Ищет подзадачу через `get_object_or_404(Subtask, id=pk, task_id=task_pk)`.
+- Инвертирует `is_completed` и сохраняет.
+- Редирект на `todo:index`.
 
-**Сценарий 2. Просмотр только активных задач**
-1. Пользователь переходит по URL `/active`.
-2. Система использует `TasksActiveListView` (`todo/views.py:17-24`), маршрут `"active"` (`todo/urls.py:15`).
-3. Выполняется запрос `Tasks.objects.filter(is_active=True).all()`.
-4. Отображается шаблон `todo/templates/todo/list.html` только с активными задачами.
+#### `SubtaskDeleteView`
 
-**Сценарий 3. Создание новой задачи**
-1. Пользователь нажимает кнопку «Добавить» на странице списка (`list.html:10`), ссылка `{% url 'todo:create' %}`.
-2. Открывается шаблон `todo/templates/todo/create.html` с формой `TasksModelForm` (`todo/forms.py:6-10`, только поле `title`).
-3. Пользователь вводит название и нажимает «Сохранить» — выполняется POST.
-4. Срабатывает `TasksCreateView` (`todo/views.py:27-32`), маршрут `"create"` (`todo/urls.py:16`).
-5. После успешного создания система перенаправляет на главную страницу (`success_url = reverse_lazy("todo:index")`).
+- POST по URL с `task_pk` и `pk`.
+- Ищет подзадачу в рамках родительской задачи и удаляет.
+- Редирект на `todo:index`.
 
-**Сценарий 4. Переключение статуса задачи (выполнена / не выполнена)**
-1. Пользователь кликает на переключатель (switch) в строке задачи в таблице (`list.html:32-41`).
-2. Форма отправляет POST на `{% url 'todo:update' model.id %}`.
-3. Срабатывает `TasksUpdateIsDoneView.post(request, pk)` (`todo/views.py:35-45`), маршрут `"update/<int:pk>"` (`todo/urls.py:17`).
-4. Если `is_active` была `True` — устанавливается `False` и `completed_at = timezone.now()`; если была `False` — устанавливается `True` и `completed_at = None`.
-5. Система перенаправляет на главную страницу (`redirect("todo:index")`).
+### 6.3 Шаблоны
 
-**Сценарий 5. Удаление задачи**
-1. Пользователь нажимает «Удалить» в строке задачи (`list.html:60-63`), ссылка `{% url 'todo:delete' model.id %}`.
-2. Выполняется GET на `/delete/<int:pk>`, срабатывает `TasksDeleteView.get` (`todo/views.py:52-55`), маршрут `"delete/<int:pk>"` (`todo/urls.py:18`).
-3. Отображается шаблон `todo/templates/todo/delete.html` с названием задачи (`{{ item.title }}`).
-4. Пользователь нажимает кнопку «Удалить» — выполняется POST.
-5. Срабатывает `TasksDeleteView.post` (`todo/views.py:58-59`), выполняется `Tasks.objects.filter(id=pk).delete()`.
-6. Система перенаправляет на главную страницу.
+| Шаблон | Назначение |
+|--------|------------|
+| `base.html` | Каркас страницы, CSS, CDN-скрипты, навигация, футер |
+| `list.html` | Таблица задач, сортировка, прогресс, подзадачи, управление |
+| `create.html` | Создание задачи |
+| `edit.html` | Редактирование задачи |
+| `category_form.html` | Создание категории |
+| `subtask_form.html` | Создание подзадачи |
+| `delete.html` | Подтверждение удаления задачи |
 
----
+#### `list.html`
 
-### 7.3 Бизнес-правила, проверки и ограничения
+Колонки таблицы:
 
-| Правило / ограничение | Описание | Подтверждение в коде |
-|-----------------------|----------|----------------------|
-| Название задачи обязательно | Поле `title` обязательно в `ModelForm`, `max_length=255` | `todo/forms.py:6-10`, `todo/models.py:7` |
-| Новая задача создаётся активной | `is_active` по умолчанию `True` | `todo/models.py:8` |
-| При выполнении задачи записывается время завершения | `completed_at = timezone.now()` при смене на `is_active=False` | `todo/views.py:42` |
-| При возврате к активному времени завершения сбрасывается | `completed_at = None` при смене на `is_active=True` | `todo/views.py:44` |
-| Все задачи общие, не привязаны к пользователю | Нет связи с `auth.User`, нет аутентификации в представлениях | `todo/models.py`, `todo/views.py` |
-| CSRF-защита на всех формах | `{% csrf_token %}` во всех шаблонах форм | `list.html:33`, `create.html:14`, `delete.html:10` |
-| Удаление требует подтверждения | GET показывает страницу подтверждения, POST выполняет удаление | `todo/views.py:52-59`, `todo/templates/todo/delete.html` |
-| Переключение статуса только через POST | `TasksUpdateIsDoneView` имеет только метод `post` | `todo/views.py:39` |
+1. `#` — `{{ forloop.counter }}`;
+2. `Приоритет` — бейдж «Низкий» / «Средний» / «Высокий»;
+3. `Категория` — название категории или `-`;
+4. `Название` — `{{ model.title }}`;
+5. `Время создания` — `{{ model.created_at|localtime }}` или `-`;
+6. `Дедлайн` — `{{ model.deadline|localtime }}` или `-`;
+7. `Прогресс` — `выполнено/всего (процент)`, например `1/2 (50%)`; без подзадач — `0/0 (0%)`;
+8. `Управление` — переключатель статуса, «Редактировать», «Удалить», список подзадач, кнопка «+ Подзадача».
 
----
+Для каждой подзадачи отображаются:
 
-### 7.4 Функциональные требования (нумерованный список)
+- чекбокс переключения выполнения (POST на `todo:subtask_update`, с CSRF);
+- название;
+- кнопка «Удалить» (POST на `todo:subtask_delete`, с CSRF).
 
-Каждое требование содержит ссылку на файл и функцию/класс, которые его подтверждают.
+Кнопка «+ Подзадача» отображается **у каждой задачи**, независимо от наличия подзадач.
 
-**FR-01.** Система должна отображать на главной странице (`/`) полный список всех задач без фильтрации.  
-Подтверждение: `todo/views.py` — класс `TasksListView` (строки 10–14); `todo/urls.py` — маршрут `""`, имя `index` (строка 14); `todo/templates/todo/list.html`.
-
-**FR-02.** Система должна отображать только активные задачи (`is_active=True`) по адресу `/active`.  
-Подтверждение: `todo/views.py` — класс `TasksActiveListView`, метод `get` (строки 17–24); `todo/urls.py` — маршрут `"active"`, имя `active` (строка 15).
-
-**FR-03.** Система должна позволять создавать новую задачу, заполняя только поле названия (`title`).  
-Подтверждение: `todo/forms.py` — класс `TasksModelForm`, `fields = ["title"]` (строки 6–10); `todo/views.py` — класс `TasksCreateView` (строки 27–32); `todo/templates/todo/create.html`.
-
-**FR-04.** После успешного создания задачи система должна перенаправлять пользователя на главную страницу.  
-Подтверждение: `todo/views.py` — `success_url = reverse_lazy("todo:index")` в `TasksCreateView` (строка 32).
-
-**FR-05.** Система должна позволять переключать статус задачи между активной и выполненной. При переходе в выполненное состояние устанавливается `completed_at` (текущее время), при возврате к активному — `completed_at` сбрасывается в `None`.  
-Подтверждение: `todo/views.py` — метод `TasksUpdateIsDoneView.post` (строки 39–45); `todo/urls.py` — маршрут `"update/<int:pk>"`, имя `update` (строка 17).
-
-**FR-06.** Система должна позволять удалять задачу после подтверждения пользователем. GET-запрос отображает страницу подтверждения с названием задачи; POST-запрос выполняет фактическое удаление.  
-Подтверждение: `todo/views.py` — класс `TasksDeleteView`, методы `get` (строки 52–55) и `post` (строки 58–59); `todo/templates/todo/delete.html`; `todo/urls.py` — маршрут `"delete/<int:pk>"`, имя `delete` (строка 18).
-
-**FR-07.** Все формы создания, переключения статуса и удаления должны быть защищены CSRF-токеном.  
-Подтверждение: `todo/templates/todo/list.html` (строка 33), `todo/templates/todo/create.html` (строка 14), `todo/templates/todo/delete.html` (строка 10) содержат `{% csrf_token %}`.
-
-**FR-08.** Задачи не привязаны к конкретным пользователям; все задачи доступны любому посетителю без аутентификации и авторизации.  
-Подтверждение: отсутствие `LoginRequiredMixin`, `PermissionRequiredMixin` или любой связи с `auth.User` в `todo/models.py` и `todo/views.py`; отсутствие зависимостей от аутентификации в представлениях.
+Пустое состояние: если `tasks_list` пуст, выводится `<p>Список дел еще нет</p>`, а теги `<table>` и `</table>` не рендерятся — вся таблица находится внутри `{% if tasks_list %}`.
 
 ---
 
-### 7.5 Неоднозначности, противоречия и возможные дефекты реализации
+## 7. Реализованные функциональные требования
 
-1. **Инвертированная семантика поля `is_active`.** Поле называется `is_active` и имеет `default=True`, но по сути означает «не выполнено» (активно = не выполнено). В миграции `0002_rename_is_active.py` оно переименовано из `is_done`, но семантика осталась противоречивой названию (`todo/models.py:8`, `todo/migrations/0002_rename_is_active.py`).
+**FR-01. Просмотр всех задач.**
+Главная страница `/` показывает все записи `Tasks` без фильтрации, по умолчанию — сначала новые.
+Подтверждение: `TasksListView`, `todo/urls.py`, `list.html`.
 
-2. **Дублирование логики отображения списка.** `TasksListView` выводит все задачи без фильтрации, тогда как `TasksActiveListView` выводит только активные. Оба используют один шаблон `list.html`, но разную логику формирования queryset (`todo/views.py:10-24`).
+**FR-02. Просмотр только активных задач.**
+Страница `/active` показывает задачи с `is_active=True`.
+Подтверждение: `TasksActiveListView`, маршрут `active`.
 
-3. **Риск нео intentional переключения статуса.** В `list.html` форма переключения статуса отправляется через `onclick="javascript:submit()"` на чекбоксе (`list.html:36,38`). Одиночный клик по чекбоксу сразу инициирует запрос на изменение статуса без дополнительного подтверждения.
+**FR-03. Создание задачи.**
+Пользователь может указать название, дедлайн, приоритет и категорию.
+Подтверждение: `TasksCreateView`, `TasksModelForm`, `create.html`.
 
-4. **Отсутствие валидации уникальности названия.** Можно создать несколько задач с одинаковым `title`; ограничения уникальности в модели нет (`todo/models.py:7`, `todo/forms.py:6-10`).
+**FR-04. Редактирование задачи.**
+Страница `/edit/<pk>` позволяет изменить название, дедлайн, приоритет и категорию.
+Подтверждение: `TasksUpdateView`, `edit.html`.
 
-5. **Отсутствие пагинации.** Список задач выводится полностью без постраничной навигации, несмотря на наличие `django-filter` и настройки пагинации в `REST_FRAMEWORK` (`config/settings.py:28-32`), которые не применяются к HTML-представлениям.
+**FR-05. Переключение статуса задачи.**
+POST на `/update/<pk>` меняет `is_active`; при завершении записывается `completed_at`, при возврате в активные — сбрасывается.
+Подтверждение: `TasksUpdateIsDoneView`.
 
-6. **Неиспользуемые зависимости.** `django-filter` и `djangorestframework` подключены в `INSTALLED_APPS` и `REST_FRAMEWORK` (`config/settings.py:22,28-32`), но API-эндпоинты и фильтрация queryset не реализованы во Views.
+**FR-06. Удаление задачи с подтверждением.**
+GET `/delete/<pk>` показывает подтверждение, POST удаляет задачу.
+Подтверждение: `TasksDeleteView`, `delete.html`.
 
-7. **Отсутствие обработки «задача не найдена» (404).** В `TasksDeleteView.get` используется `Tasks.objects.get(id=pk)` (`todo/views.py:54`), что при несуществующем `pk` вызовет `DoesNotExist` и приведёт к ошибке 500 вместо страницы 404.
+**FR-07. Создание категории.**
+Пользователь может создать категорию, указав только название.
+Подтверждение: `TasksCategoryCreateView`, `CategoryModelForm`, `category_form.html`.
 
-8. **Потенциальная ошибка `AttributeError` в `TasksUpdateIsDoneView`.** Используется `Tasks.objects.filter(id=pk).first()` (`todo/views.py:40`); если задача не найдена, `item` будет `None`, и обращение к `item.is_active` вызовет `AttributeError`.
+**FR-08. Создание подзадачи.**
+Подзадача создаётся для конкретной задачи через `/task/<task_pk>/subtask/create`.
+Подтверждение: `SubtaskCreateView`, `SubtaskModelForm`, `subtask_form.html`.
 
-9. **Отсутствие разграничения прав доступа.** Любой пользователь может создать, переключить статус и удалить любую задачу, так как нет привязки к пользователю и нет проверок прав (`todo/views.py`, `todo/models.py`).
+**FR-09. Переключение выполнения подзадачи.**
+POST на `subtask_update` инвертирует `is_completed`.
+Подтверждение: `SubtaskUpdateIsDoneView`.
 
-10. **Нет использования `TasksActiveListView` из шаблона.** Навигация в `base.html` ведёт только на `todo:index` (`base.html:32,49`); ссылка на `/active` не используется в интерфейсе, хотя маршрут существует.
+**FR-10. Удаление подзадачи.**
+POST на `subtask_delete` удаляет подзадачу в рамках её задачи.
+Подтверждение: `SubtaskDeleteView`, форма в `list.html`.
 
-11. **Запутанная история миграций.** `0001_add_item.py` создаёт модель `Item` с полем `is_done` (default `False`), `0002_rename_is_active.py` переименовывает `is_done` → `is_active`, а `0003_rename_tasks.py` создаёт модель `Tasks` (с `is_active`, default `True`) и удаляет модель `Item` (`todo/migrations/0001_add_item.py`, `0002_rename_is_active.py`, `0003_rename_tasks.py`). Прямой путь от исходного состояния к текущему неотследим — промежуточная модель `Item` создана и удалена.
+**FR-11. Кнопка «+ Подзадача» у каждой задачи.**
+Кнопка не зависит от наличия подзадач и рендерится всегда.
+Подтверждение: `list.html`.
 
-12. **Неконсистентность default между миграциями.** В `0001_add_item.py` поле `is_done` имеет `default=False`, а в итоговой модели `Tasks` поле `is_active` имеет `default=True`. Это означает, что при применении миграций с нуля новая задача создаётся активной, но промежуточная модель `Item` предполагала неактивное состояние по умолчанию.
+**FR-12. Отображение прогресса.**
+Для каждой задачи выводится `выполнено/всего` и процент; без подзадач — `0/0 (0%)`.
+Подтверждение: `list.html`, фильтр `completed_count`, тег `widthratio`.
 
-13. **Отсутствие squash-миграции.** Три миграции для одной модели создают лишнюю нагрузку при применении и усложняют понимание схемы БД (`todo/migrations/`).
+**FR-13. Сортировка по полям.**
+Поддерживаются `priority`, `category`, `title`, `created_at`, `deadline`, `progress`.
+Подтверждение: `ALLOWED_SORT_FIELDS`, `TasksListView.get_queryset`.
+
+**FR-14. Переключение направления сортировки.**
+Ссылки в заголовках содержат `dir_<поле>`; повторный клик переключает `asc`/`desc`; `desc` даёт убывание, `asc` — возрастание.
+Подтверждение: `_next_dir`, `get_context_data`, `list.html`.
+
+**FR-15. Семантический порядок приоритетов.**
+При `asc`: низкий → средний → высокий; при `desc`: высокий → средний → низкий.
+Подтверждение: аннотация `_priority_order` в `TasksListView`.
+
+**FR-16. Задачи без категории и без дедлайна — в конце.**
+При сортировке по категории и дедлайну используются `nulls_last=True` для обоих направлений.
+Подтверждение: `F("category__name").asc/desc(nulls_last=True)`, `F("deadline").asc/desc(nulls_last=True)`.
+
+**FR-17. Корректная разметка пустого списка.**
+При отсутствии задач не рендерятся `<table>`, `<thead>` и `<tbody>`; выводится только сообщение.
+Подтверждение: `list.html`.
+
+**FR-18. CSRF-защита.**
+Все POST-формы содержат `{% csrf_token %}`: создание/редактирование задачи, создание категории, создание подзадачи, переключение статуса, удаление подзадачи.
+Подтверждение: шаблоны `create.html`, `edit.html`, `category_form.html`, `subtask_form.html`, `list.html`, `delete.html`.
+
+**FR-19. Календарь для дедлайна.**
+Поле дедлайна использует `DateTimeLocalInput` с `input_type="datetime-local"` и форматом `%Y-%m-%dT%H:%M`; браузер показывает календарь, значение при редактировании подставляется в локальном времени.
+Подтверждение: `todo/forms.py`.
+
+**FR-20. Цвет категории отсутствует.**
+Поле `color` удалено из модели, формы, админки и итоговой схемы БД; остались только исторические миграции `0004`/`0005`.
+Подтверждение: `todo/models.py`, `todo/forms.py`, `todo/admin.py`, `0005_remove_category_color.py`.
 
 ---
 
-## 9) Исправленные дефекты реализации
+## 8. Бизнес-правила, проверки и ограничения
 
-Ниже перечислены дефекты из разделов 6 и 7, которые влияли на работоспособность, и внесённые правки.
+| Правило / ограничение | Текущая реализация | Подтверждение |
+|-----------------------|--------------------|---------------|
+| Название задачи обязательно | `title` — обязательное `CharField(max_length=255)` | `todo/models.py`, `TasksModelForm` |
+| Новая задача активна | `is_active=True` по умолчанию | `todo/models.py` |
+| Приоритет по умолчанию | `medium` | `todo/models.py` |
+| Категория необязательна | `null=True`, `blank=True`, при удалении категории — `SET_NULL` | `todo/models.py` |
+| Дедлайн необязателен | `null=True`, `blank=True` | `todo/models.py` |
+| Время завершения | Устанавливается вручную при переводе задачи в выполненные; сбрасывается при возврате в активные | `TasksUpdateIsDoneView` |
+| Подзадача принадлежит задаче | `ForeignKey(Tasks, on_delete=CASCADE, related_name="subtasks")` | `todo/models.py` |
+| Название подзадачи обязательно | `CharField(max_length=255)` | `todo/models.py`, `SubtaskModelForm` |
+| Прогресс без подзадач | `0/0 (0%)`, доля для сортировки — `0.0` | `list.html`, `TasksListView` |
+| Сортировка только по допустимым полям | Белый список `ALLOWED_SORT_FIELDS` | `todo/views.py` |
+| Неизвестное поле сортировки | Игнорируется, используется порядок по умолчанию `-created_at` | `TasksListView` |
+| Некорректный `dir` | Приводится к `desc` | `_next_dir`, `get_queryset` |
+| Задачи без категории/дедлайна | Всегда в конце при сортировке по соответствующему полю | `F(...).asc/desc(nulls_last=True)` |
+| CSRF | Все POST-формы содержат `{% csrf_token %}` | шаблоны |
+| Аутентификация | Отсутствует; все задачи общие | `todo/models.py`, `todo/views.py` |
+| Уникальность названия | Не проверяется | `todo/models.py` |
+| Валидация дедлайна | Нет запрета на прошедшую дату | `TasksModelForm` |
+| Пагинация | Отсутствует | `TasksListView`, `list.html` |
 
-### 9.1 Исправлено в `todo/views.py`
+---
 
-| Дефект | Было | Стало | Файл |
-|--------|------|-------|------|
-| **500 при удалении несуществующей задачи** | `Tasks.objects.get(id=pk)` — вызывает `DoesNotExist` → ошибка 500 | `get_object_or_404(Tasks, id=pk)` — возвращает 404 | `todo/views.py:53` |
-| **`AttributeError` при переключении статуса несуществующей задачи** | `Tasks.objects.filter(id=pk).first()` может вернуть `None`, затем `item.is_active` → `AttributeError` | `get_object_or_404(Tasks, id=pk)` — возвращает 404 | `todo/views.py:40` |
-| **Дублирование логики списка** | `TasksActiveListView(View)` с ручным `render()` и `TasksListView(ListView)` — разные паттерны | Оба — `ListView`, `TasksActiveListView` через `get_queryset()` | `todo/views.py:17-24` |
-| **Неиспользуемый импорт** | `DeleteView` импортирован, но не используется | Удалён из импортов | `todo/views.py:4` |
+## 9. Исправленные дефекты и изменения относительно исходной версии
 
-### 9.2 Исправлено в `config/settings.py`
+### 9.1 Модель данных
 
-| Дефект | Было | Стало | Файл |
-|--------|------|-------|------|
-| **Мёртвая конфигурация REST** | Блок `REST_FRAMEWORK` с `django_filters.rest_framework.DjangoFilterBackend`, но API не реализовано | Удалён | `config/settings.py:28-32` (удалено) |
-| **Неиспользуемая зависимость** | `"django_filters"` в `INSTALLED_APPS` | Удалён | `config/settings.py:22` (удалено) |
+- Добавлены модели `Category` и `Subtask`.
+- В `Tasks` добавлены `priority`, `category`, `deadline`.
+- В `Category` больше нет поля `color`: оно удалено из модели, формы, админки и итоговой схемы БД.
+- История миграций: `0004` добавляет новые сущности и поля, `0005` удаляет `Category.color`.
 
-### 9.3 Исправлено в `requirements.txt`
+### 9.2 Представления и сортировка
 
-| Изменение | Было | Стало |
-|-----------|------|-------|
-| Удалена неиспользуемая зависимость | `django-filter==26.2` | Удалён |
+| Было / дефект | Стало |
+|---------------|-------|
+| `TasksActiveListView` дублировал логику списка и сортировки | Наследуется от `TasksListView`, переопределяет только `get_queryset` с фильтром `is_active=True` |
+| В активном списке направление сортировки было инвертировано | Единая логика `asc`/`desc` для обоих списков |
+| Сортировка приоритета в активном списке была алфавитной | Аннотация `_priority_order`: `low=1`, `medium=2`, `high=3` |
+| `order_by("category__isnull", ...)` вызывал `FieldError` | `F("category__name").asc/desc(nulls_last=True)` |
+| `order_by("deadline__isnull", ...)` вызывал `FieldError` | `F("deadline").asc/desc(nulls_last=True)` |
+| Прогресс в активном списке считался по числу выполненных, а не по доле | Единая аннотация `total` / `completed` / `progress_frac` |
+| `Tasks.objects.get()` / `.filter().first()` могли дать 500 при неверном `pk` | `get_object_or_404` в update/delete-представлениях |
 
-### 9.4 Поведение приложения не изменилось
+### 9.3 Шаблон `list.html`
 
-- `/` — показывает все задачи (как и раньше)
-- `/active` — показывает только активные задачи (как и раньше)
-- `/create` — создание задачи (как и раньше)
-- `/update/<int:pk>` — переключение статуса (как и раньше)
-- `/delete/<int:pk>` — удаление с подтверждением (как и раньше)
-- Несуществующая задача теперь возвращает **404** вместо **500**
+- Кнопка «+ Подзадача» вынесена из условия `{% if subtasks %}` и отображается у каждой задачи.
+- Добавлена кнопка удаления подзадачи: POST на `todo:subtask_delete` с CSRF.
+- В колонке «Прогресс» выводится `выполнено/всего (процент)`, например `1/2 (50%)`; без подзадач — `0/0 (0%)`.
+- `<table>`, `<thead>`, `<tbody>` и `</table>` полностью находятся внутри `{% if tasks_list %}`; пустой список не содержит тегов таблицы.
+- Ссылки сортировки используют актуальные `dir_<поле>`; повторный клик переключает направление.
+- Задачи без категории и без дедлайна отображаются/сортируются в конце при соответствующей сортировке.
+
+### 9.4 Формы
+
+- Дедлайн больше не текстовое поле: используется `DateTimeLocalInput` с `type="datetime-local"`, формат `%Y-%m-%dT%H:%M`.
+- При редактировании значение дедлайна подставляется в локальном времени.
+- Поле цвета категории полностью удалено; `CategoryModelForm` содержит только `name`.
+
+### 9.5 Конфигурация и зависимости
+
+- Проект работает на Django 6.1.2 (в исходной версии был Django 4.1.7).
+- `requirements.txt` содержит актуальный набор: Django 6.1.2, crispy-forms 2.7, crispy-bootstrap3 2024.1, asgiref, sqlparse.
+- В текущих `INSTALLED_APPS` и `requirements.txt` нет `django-filter` и `djangorestframework`; при этом `django-filter` всё ещё установлен в `.venv` как остаток прежней конфигурации.
+- В `settings.py` заданы `ALLOWED_HOSTS = ["127.0.0.1", "localhost"]`, `DEFAULT_AUTO_FIELD = BigAutoField`, `LANGUAGE_CODE = "ru-RU"`, `TIME_ZONE = "Europe/Moscow"`.
+- CSS Bootstrap в проекте — 5.1.3, при этом формы рендерятся через `crispy-bootstrap3`; это известное несоответствие оформления.
+
+---
+
+## 10. Остаточные ограничения и риски
+
+1. **Настройки не для production.** `SECRET_KEY` — временный dev-ключ, `DEBUG=True`, `ALLOWED_HOSTS` ограничен `127.0.0.1` и `localhost`. Перед развёртыванием нужны реальный секрет, выключенный debug, HTTPS-настройки и корректные хосты.
+2. **Нет аутентификации и авторизации.** Любой посетитель может создавать, редактировать и удалять любые задачи, категории и подзадачи. Привязки к пользователю нет.
+3. **Нет пагинации.** Список выводится целиком; при большом количестве задач возможны проблемы с производительностью.
+4. **Нет автоматизированных тестов в репозитории.** Проверки выполнялись вручную/через Django test client и не сохранены как тестовый набор.
+5. **Документация частично устарела.** `README.md` до сих пор предлагает устанавливать `django_filter`; `AUDIT.md` описывает исходную версию (Django 4.1.7, пустой `SECRET_KEY`, отсутствие категорий и подзадач) и не отражает текущее состояние.
+6. **Неиспользуемая зависимость.** `django-filter==26.2` установлен в `.venv`, но отсутствует в `requirements.txt`, `INSTALLED_APPS` и коде.
+7. **Несоответствие CSS и crispy.** Локальный CSS — Bootstrap 5.1.3, а формы рендерятся пакетом `crispy-bootstrap3`; возможны визуальные расхождения.
+8. **Мёртвый код в `base.html`.** Moment.js, Tempus Dominus и скрипт `$("#datetimepicker1").datetimepicker(...)` больше не используются: дедлайн работает через нативный `datetime-local`. CDN-ресурсы можно удалить.
+9. **Хрупкое переключение чекбоксов.** В `list.html` используется `onclick="javascript:submit()"`; вызов не привязан явно к конкретной форме, а в строке несколько форм. Поведение зависит от браузера и может быть ненадёжным. Надёжнее указывать конкретную форму или использовать отдельные обработчики.
+10. **Категории неполные.** Реализовано только создание категории; нет отдельного списка, редактирования и удаления категорий.
+11. **Подзадачи неполные.** Нет редактирования названия подзадачи; доступны создание, переключение выполнения и удаление.
+12. **Нет проверок уникальности и дат.** Названия задач/категорий/подзадач не уникальны; прошедшие дедлайны не запрещены; при равных значениях сортировки нет стабильного tie-breaker.
+13. **Семантика `is_active`.** `True` означает «активная / не выполненная», что противоречит названию поля и может путать; шаблон инвертирует значение для чекбокса.
+14. **Мелкие дефекты шаблонов.** В `create.html`/`edit.html` указан `enctype="multipart/form-data"` при отсутствии файловых полей; в `delete.html` текст «удалить задача» вместо «удалить задачу».
+15. **SQLite.** База подходит для локальной разработки, но не для многопользовательской production-нагрузки.
+16. **Исторические упоминания цвета.** `Category.color` удалён из рабочего кода и схемы, но остаётся в миграциях `0004` (добавление) и `0005` (удаление) — это нормальная история миграций.
+
+---
+
+## 11. Проверка текущего состояния
+
+Выполненные команды:
+
+```bash
+.venv/bin/python manage.py check
+# System check identified no issues (0 silenced).
+
+.venv/bin/python manage.py makemigrations --check --dry-run
+# No changes detected
+```
+
+Дополнительно через Django test client проверялось:
+
+- создание подзадачи через форму с CSRF и её удаление POST-запросом;
+- отображение прогресса `1/2 (50%)`, `2/2 (100%)`, `0/0 (0%)`;
+- сортировка по `priority`, `category`, `deadline`, `progress`, `title` в направлениях `asc` и `desc`;
+- переключение `dir_*` при повторном клике;
+- задачи без категории и без дедлайна в конце списка;
+- активный список (наследование сортировки и фильтрация `is_active=True`);
+- пустой список без тегов `<table>`;
+- страница создания задачи с `input type="datetime-local"` и сохранение даты без сдвига;
+- отсутствие поля цвета в модели, форме, админке и таблице БД.
+
+Тестовые данные создавались в транзакции и откатывались; локальная база не заполнялась тестовыми записями.
+
