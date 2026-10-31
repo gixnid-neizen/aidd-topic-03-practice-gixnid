@@ -1,0 +1,13 @@
+{% extends "todo/base.html" %}
+
+{% block title %}
+<title>Удаление категории</title>
+{% endblock %}
+
+{% block content %}
+    <form method="post">
+        {% csrf_token %}
+        <p>Вы уверены, что хотите удалить категорию: <b>"{{ category }}"</b>? Задачи этой категории останутся без категории.</p>
+        <input type="submit" class="btn btn-sm btn-outline-danger rounded-pill" value="Удалить" />
+    </form>
+{% endblock %}

@@ -8,6 +8,7 @@
 {% load tz %}
 <div>
     <a href="{% url 'todo:create' %}" class="btn btn-primary">Добавить</a>
+    <a href="{% url 'todo:category_list' %}" class="btn btn-secondary">Категории</a>
 </div>
 
 {% if tasks_list %}
@@ -17,6 +18,10 @@
         <th scope="col">#</th>
         <th scope="col">Выполнено</th>
         <th scope="col">Название</th>
+        <th scope="col"><a href="{{ request.path }}?sort=priority&amp;order={% if sort == 'priority' and order == 'asc' %}desc{% else %}asc{% endif %}">Приоритет{% if sort == 'priority' %}{% if order == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</a></th>
+        <th scope="col"><a href="{{ request.path }}?sort=category&amp;order={% if sort == 'category' and order == 'asc' %}desc{% else %}asc{% endif %}">Категория{% if sort == 'category' %}{% if order == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</a></th>
+        <th scope="col"><a href="{{ request.path }}?sort=deadline&amp;order={% if sort == 'deadline' and order == 'asc' %}desc{% else %}asc{% endif %}">Срок{% if sort == 'deadline' %}{% if order == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</a></th>
+        <th scope="col"><a href="{{ request.path }}?sort=progress&amp;order={% if sort == 'progress' and order == 'asc' %}desc{% else %}asc{% endif %}">Прогресс{% if sort == 'progress' %}{% if order == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</a></th>
         <th scope="col">Время создания</th>
         <th scope="col">Время выполнения</th>
         <th scope="col">Управление</th>
@@ -41,7 +46,29 @@
             </form>
 
         </td>
-        <td>{{ model.title }}</td>
+        <td><a href="{% url 'todo:detail' model.id %}">{{ model.title }}</a></td>
+        <td>{{ model.get_priority_display }}</td>
+        <td>
+            {% if model.category %}
+            {{ model.category.name }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
+        <td>
+            {% if model.due_date %}
+            <span{% if model.is_active and model.due_date < now %} class="text-danger"{% endif %}>{{ model.due_date|localtime }}</span>
+            {% else %}
+            -
+            {% endif %}
+        </td>
+        <td>
+            {% if model.subtask_total %}
+            {{ model.subtask_done }}/{{ model.subtask_total }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
         <td>
             {% if model.created_at %}
             {{ model.created_at|localtime }}
@@ -57,6 +84,9 @@
             {% endif %}
         </td>
         <td>
+            <a href="{% url 'todo:edit' model.id %}" class="btn btn-primary">
+                Изменить
+            </a>
             <a href="{% url 'todo:delete' model.id %}" class="btn btn-danger">
                 Удалить
             </a>

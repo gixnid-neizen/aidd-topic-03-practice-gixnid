@@ -1,0 +1,41 @@
+{% extends "todo/base.html" %}
+
+{% block title %}
+<title>{{ tasks.title }}</title>
+{% endblock %}
+
+{% block content %}
+{% load tz %}
+<h2>{{ tasks.title }}</h2>
+<p>
+    Приоритет: {{ tasks.get_priority_display }} ·
+    Категория: {% if tasks.category %}{{ tasks.category.name }}{% else %}—{% endif %} ·
+    Срок: {% if tasks.due_date %}{{ tasks.due_date|localtime }}{% else %}—{% endif %} ·
+    Прогресс: {% if tasks.subtask_progress %}{{ tasks.subtask_progress }}{% else %}—{% endif %}
+</p>
+<hr>
+<h4>Подзадачи</h4>
+<ul>
+{% for subtask in tasks.subtasks.all %}
+    <li>
+        <form method="post" action="{% url 'todo:subtask_toggle' subtask.id %}" class="d-inline">
+            {% csrf_token %}
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" onclick="javascript:submit()" role="switch"{% if subtask.is_done %} checked{% endif %}>
+            </div>
+        </form>
+        {{ subtask.title }}
+        <a href="{% url 'todo:subtask_delete' subtask.id %}" class="btn btn-danger btn-sm">Удалить</a>
+    </li>
+{% empty %}
+    <li>Подзадач пока нет</li>
+{% endfor %}
+</ul>
+{% load crispy_forms_tags %}
+<form method="post" action="{% url 'todo:subtask_add' tasks.id %}">
+    {% csrf_token %}
+    {{ subtask_form.title|as_crispy_field }}
+    <button type="submit" class="btn btn-primary btn-sm">Добавить подзадачу</button>
+</form>
+<p><a href="{% url 'todo:index' %}">← К списку задач</a></p>
+{% endblock %}
